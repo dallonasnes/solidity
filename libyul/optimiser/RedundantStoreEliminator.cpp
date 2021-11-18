@@ -347,25 +347,31 @@ bool RedundantStoreEliminator::knownUnrelated(
 			return true;
 		if (_op2.length && knowledge.knownToBeZero(*_op2.length))
 			return true;
-		if (!_op1.start || !_op2.start || !_op1.length || !_op2.length)
-			// Can we say anything else here?
-			// TODO cameel says: 1.start + 1.length <= 2.start can still be
-			// checked when 2.length is unknown.
-			// Same for 2.start + 2.length <= 1.start when 1.length is unknown.
-			return false;
 
-		// 1.start + 1.length <= 2.start ||
-		if (optional<u256> length1 = knowledge.valueIfKnownConstant(*_op1.length))
-			if (optional<u256> diff = knowledge.differenceIfKnownConstant(*_op2.start, *_op1.start))
-				// diff = 2.start - 1.start
-				if (*length1 <= *diff && *length1 <= largestPositive && *diff <= largestPositive)
+		// 1.start + 1.length <= 2.start
+		if (_op1.length && _op2.start && _op1.start)
+		{
+			optional<u256> length1 = knowledge.valueIfKnownConstant(*_op1.length);
+			optional<u256> diff = knowledge.differenceIfKnownConstant(*_op2.start, *_op1.start);
+			// diff = 2.start - 1.start
+			if (length1 && diff)
+				if (
+					*length1 <= *diff &&
+					*length1 <= largestPositive &&
+					*diff <= largestPositive
+				)
 					return true;
+		}
 		// 2.start + 2.length <= 1.start
-		if (optional<u256> length2 = knowledge.valueIfKnownConstant(*_op2.length))
-			if (optional<u256> diff = knowledge.differenceIfKnownConstant(*_op1.start, *_op2.start))
-				// diff = 1.start - 2.start
+		if (_op2.length && _op1.start && _op2.start)
+		{
+			optional<u256> length2 = knowledge.valueIfKnownConstant(*_op2.length);
+			optional<u256> diff = knowledge.differenceIfKnownConstant(*_op1.start, *_op2.start);
+			// diff = 1.start - 2.start
+			if (length2 && diff)
 				if (*length2 <= *diff && *length2 <= largestPositive && *diff <= largestPositive)
 					return true;
+		}
 	}
 
 	return false;
