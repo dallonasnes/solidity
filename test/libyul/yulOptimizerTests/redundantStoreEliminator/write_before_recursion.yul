@@ -13,11 +13,13 @@
 // step: redundantStoreEliminator
 //
 // {
-//     let _1 := 1
-//     let _2 := 0
-//     let _3 := 2
-//     let _4 := 0
-//     f()
+//     {
+//         let _1 := 1
+//         let _2 := 0
+//         let _3 := 2
+//         let _4 := 0
+//         f()
+//     }
 //     function f()
 //     { g() }
 //     function g()

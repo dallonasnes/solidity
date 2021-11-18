@@ -10,6 +10,7 @@
 // step: redundantStoreEliminator
 //
 // {
+//     { }
 //     function f()
 //     {
 //         let x := calldataload(2)

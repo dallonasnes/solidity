@@ -14,10 +14,12 @@
 // step: redundantStoreEliminator
 //
 // {
-//     let x := 0
-//     let y := 1
-//     f()
-//     sstore(x, y)
+//     {
+//         let x := 0
+//         let y := 1
+//         f()
+//         sstore(x, y)
+//     }
 //     function f()
 //     {
 //         f()
