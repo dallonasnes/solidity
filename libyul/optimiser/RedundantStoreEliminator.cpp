@@ -247,8 +247,12 @@ vector<RedundantStoreEliminator::Operation> RedundantStoreEliminator::operations
 			instruction == Instruction::RETURNDATACOPY
 		)
 			op.length = identifierNameIfSSA(_functionCall.arguments.at(2));
-		else
+		else if (instruction == Instruction::SSTORE || instruction == Instruction::SLOAD)
+			// Storage operations, length is unused / non-sensical
 			op.length = {};
+		else
+			yulAssert(false);
+
 		return {op};
 	}
 	case Instruction::STATICCALL:
