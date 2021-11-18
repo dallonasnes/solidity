@@ -390,6 +390,7 @@ bool RedundantStoreEliminator::knownCovered(
 		return false;
 	if (
 		(_covered.start && _covered.start == _covering.start) &&
+		// length is unused for storage
 		(_covered.location == Location::Storage || (_covered.length && _covered.length == _covering.length))
 	)
 		return true;
