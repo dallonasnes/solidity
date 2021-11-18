@@ -176,137 +176,139 @@ vector<RedundantStoreEliminator::Operation> RedundantStoreEliminator::operations
 	else
 		sideEffects = m_functionSideEffects.at(functionName);
 
-	if (optional<Instruction> instruction = toEVMInstruction(m_dialect, functionName))
+	optional<Instruction> instruction = toEVMInstruction(m_dialect, functionName);
+	if (!instruction)
 	{
-		switch (*instruction)
-		{
-		case Instruction::SSTORE:
-		case Instruction::SLOAD:
-		case Instruction::MSTORE:
-		case Instruction::MSTORE8:
-		case Instruction::MLOAD:
-		case Instruction::REVERT:
-		case Instruction::RETURN:
-		case Instruction::EXTCODECOPY:
-		case Instruction::CODECOPY:
-		case Instruction::CALLDATACOPY:
-		case Instruction::RETURNDATACOPY:
-		case Instruction::KECCAK256:
-		case Instruction::LOG0:
-		case Instruction::LOG1:
-		case Instruction::LOG2:
-		case Instruction::LOG3:
-		case Instruction::LOG4:
-		{
-			Operation op;
-			if (sideEffects.memory == SideEffects::Write || sideEffects.storage == SideEffects::Write)
-				op.effect = Effect::Write;
-			else
-				op.effect = Effect::Read;
-
-			op.location =
-				(instruction == Instruction::SSTORE || instruction == Instruction::SLOAD) ?
-				Location::Storage :
-				Location::Memory;
-
-			if (*instruction == Instruction::EXTCODECOPY)
-				op.start = identifierNameIfSSA(_functionCall.arguments.at(1));
-			else
-				op.start = identifierNameIfSSA(_functionCall.arguments.at(0));
-
-			if (instruction == Instruction::MSTORE || instruction == Instruction::MLOAD)
-				op.length = YulString(thirtyTwo);
-			else if (instruction == Instruction::MSTORE8)
-				op.length = YulString(one);
-			else if (
-				instruction == Instruction::REVERT ||
-				instruction == Instruction::RETURN ||
-				instruction == Instruction::KECCAK256 ||
-				instruction == Instruction::LOG0 ||
-				instruction == Instruction::LOG1 ||
-				instruction == Instruction::LOG2 ||
-				instruction == Instruction::LOG3 ||
-				instruction == Instruction::LOG4
-			)
-				op.length = identifierNameIfSSA(_functionCall.arguments.at(1));
-			else if (*instruction == Instruction::EXTCODECOPY)
-				op.length = identifierNameIfSSA(_functionCall.arguments.at(3));
-			else if (
-				instruction == Instruction::CALLDATACOPY ||
-				instruction == Instruction::CODECOPY ||
-				instruction == Instruction::RETURNDATACOPY
-			)
-				op.length = identifierNameIfSSA(_functionCall.arguments.at(2));
-			else
-				op.length = {};
-			return {op};
-		}
-		case Instruction::STATICCALL:
-		case Instruction::CALL:
-		case Instruction::CALLCODE:
-		case Instruction::DELEGATECALL:
-		{
-			size_t arguments = _functionCall.arguments.size();
-			return vector<Operation>{
-				Operation{
-					Location::Memory,
-					Effect::Read,
-					identifierNameIfSSA(_functionCall.arguments.at(arguments - 4)),
-					identifierNameIfSSA(_functionCall.arguments.at(arguments - 3))
-				},
-				// Unknown read includes unknown write.
-				Operation{Location::Storage, Effect::Read, {}, {}},
-				Operation{
-					Location::Memory,
-					Effect::Write,
-					identifierNameIfSSA(_functionCall.arguments.at(arguments - 2)),
-					identifierNameIfSSA(_functionCall.arguments.at(arguments - 1))
-				}
-			};
-		}
-		case Instruction::CREATE:
-		case Instruction::CREATE2:
-			return vector<Operation>{
-				Operation{
-					Location::Memory,
-					Effect::Read,
-					identifierNameIfSSA(_functionCall.arguments.at(1)),
-					identifierNameIfSSA(_functionCall.arguments.at(2))
-				},
-				// Unknown read includes unknown write.
-				Operation{Location::Storage, Effect::Read, {}, {}},
-			};
-		case Instruction::MSIZE:
-			// This is just to satisfy the assert below.
-			return vector<Operation>{};
-		default:
-			yulAssert(
-				evmasm::SemanticInformation::storage(*instruction) ==
-				evmasm::SemanticInformation::None,
-				""
-			);
-			yulAssert(
-				evmasm::SemanticInformation::memory(*instruction) ==
-				evmasm::SemanticInformation::None,
-				""
-			);
-			yulAssert(
-				sideEffects.memory == SideEffects::Effect::None &&
-				sideEffects.storage == SideEffects::Effect::None,
-				""
-			);
-
-			break;
-		}
+		vector<Operation> result;
+		// Unknown read is worse than unknown write.
+		if (sideEffects.memory != SideEffects::Effect::None)
+			result.emplace_back(Operation{Location::Memory, Effect::Read, {}, {}});
+		if (sideEffects.storage != SideEffects::Effect::None)
+			result.emplace_back(Operation{Location::Storage, Effect::Read, {}, {}});
+		return result;
 	}
 
-	vector<Operation> result;
-	if (sideEffects.memory != SideEffects::Effect::None)
-		result.emplace_back(Operation{Location::Memory, Effect::Read, {}, {}});
-	if (sideEffects.storage != SideEffects::Effect::None)
-		result.emplace_back(Operation{Location::Storage, Effect::Read, {}, {}});
+	switch (*instruction)
+	{
+	case Instruction::SSTORE:
+	case Instruction::SLOAD:
+	case Instruction::MSTORE:
+	case Instruction::MSTORE8:
+	case Instruction::MLOAD:
+	case Instruction::REVERT:
+	case Instruction::RETURN:
+	case Instruction::EXTCODECOPY:
+	case Instruction::CODECOPY:
+	case Instruction::CALLDATACOPY:
+	case Instruction::RETURNDATACOPY:
+	case Instruction::KECCAK256:
+	case Instruction::LOG0:
+	case Instruction::LOG1:
+	case Instruction::LOG2:
+	case Instruction::LOG3:
+	case Instruction::LOG4:
+	{
+		Operation op;
+		if (sideEffects.memory == SideEffects::Write || sideEffects.storage == SideEffects::Write)
+			op.effect = Effect::Write;
+		else
+			op.effect = Effect::Read;
 
-	return result;
+		op.location =
+			(instruction == Instruction::SSTORE || instruction == Instruction::SLOAD) ?
+			Location::Storage :
+			Location::Memory;
+
+		if (*instruction == Instruction::EXTCODECOPY)
+			op.start = identifierNameIfSSA(_functionCall.arguments.at(1));
+		else
+			op.start = identifierNameIfSSA(_functionCall.arguments.at(0));
+
+		if (instruction == Instruction::MSTORE || instruction == Instruction::MLOAD)
+			op.length = YulString(thirtyTwo);
+		else if (instruction == Instruction::MSTORE8)
+			op.length = YulString(one);
+		else if (
+			instruction == Instruction::REVERT ||
+			instruction == Instruction::RETURN ||
+			instruction == Instruction::KECCAK256 ||
+			instruction == Instruction::LOG0 ||
+			instruction == Instruction::LOG1 ||
+			instruction == Instruction::LOG2 ||
+			instruction == Instruction::LOG3 ||
+			instruction == Instruction::LOG4
+		)
+			op.length = identifierNameIfSSA(_functionCall.arguments.at(1));
+		else if (*instruction == Instruction::EXTCODECOPY)
+			op.length = identifierNameIfSSA(_functionCall.arguments.at(3));
+		else if (
+			instruction == Instruction::CALLDATACOPY ||
+			instruction == Instruction::CODECOPY ||
+			instruction == Instruction::RETURNDATACOPY
+		)
+			op.length = identifierNameIfSSA(_functionCall.arguments.at(2));
+		else
+			op.length = {};
+		return {op};
+	}
+	case Instruction::STATICCALL:
+	case Instruction::CALL:
+	case Instruction::CALLCODE:
+	case Instruction::DELEGATECALL:
+	{
+		size_t arguments = _functionCall.arguments.size();
+		return vector<Operation>{
+			Operation{
+				Location::Memory,
+				Effect::Read,
+				identifierNameIfSSA(_functionCall.arguments.at(arguments - 4)),
+				identifierNameIfSSA(_functionCall.arguments.at(arguments - 3))
+			},
+			// Unknown read includes unknown write.
+			Operation{Location::Storage, Effect::Read, {}, {}},
+			Operation{
+				Location::Memory,
+				Effect::Write,
+				identifierNameIfSSA(_functionCall.arguments.at(arguments - 2)),
+				identifierNameIfSSA(_functionCall.arguments.at(arguments - 1))
+			}
+		};
+	}
+	case Instruction::CREATE:
+	case Instruction::CREATE2:
+		return vector<Operation>{
+			Operation{
+				Location::Memory,
+				Effect::Read,
+				identifierNameIfSSA(_functionCall.arguments.at(1)),
+				identifierNameIfSSA(_functionCall.arguments.at(2))
+			},
+			// Unknown read includes unknown write.
+			Operation{Location::Storage, Effect::Read, {}, {}},
+		};
+	case Instruction::MSIZE:
+		// This is just to satisfy the assert below.
+		return vector<Operation>{};
+	default:
+		break;
+	}
+
+	yulAssert(
+		evmasm::SemanticInformation::storage(*instruction) ==
+		evmasm::SemanticInformation::None,
+		""
+	);
+	yulAssert(
+		evmasm::SemanticInformation::memory(*instruction) ==
+		evmasm::SemanticInformation::None,
+		""
+	);
+	yulAssert(
+		sideEffects.memory == SideEffects::Effect::None &&
+		sideEffects.storage == SideEffects::Effect::None,
+		""
+	);
+	return {};
 }
 
 void RedundantStoreEliminator::applyOperation(RedundantStoreEliminator::Operation const& _operation)
@@ -347,6 +349,9 @@ bool RedundantStoreEliminator::knownUnrelated(
 			return true;
 		if (!_op1.start || !_op2.start || !_op1.length || !_op2.length)
 			// Can we say anything else here?
+			// TODO cameel says: 1.start + 1.length <= 2.start can still be
+			// checked when 2.length is unknown.
+			// Same for 2.start + 2.length <= 1.start when 1.length is unknown.
 			return false;
 
 		// 1.start + 1.length <= 2.start ||
